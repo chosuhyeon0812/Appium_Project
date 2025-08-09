@@ -22,5 +22,5 @@ options = UiAutomator2Options().load_capabilities(desired_caps)
 driver = webdriver.Remote("http://localhost:4723", options=options)
 
 # 앱이 로드될 때까지 대기
-time.sleep(3)
+sleep(3)
 driver.quit()
