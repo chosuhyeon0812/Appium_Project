@@ -1,4 +1,6 @@
 # 6. 서울 - 어디든지 동작 확인
+# 검색 > 어디든지 검색 > 서울 - 어디든지 > 어디든지 : 방콕 > 날짜 : 8월 > 계속 > 검색 
+# 원하는 항목 찾을 떄 for문 사용
 
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
