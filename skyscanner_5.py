@@ -1,6 +1,5 @@
 # 5. 하단 영역 선택 > Drops
 
-
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
 from appium.webdriver.common.appiumby import AppiumBy
