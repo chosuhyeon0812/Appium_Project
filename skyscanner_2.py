@@ -6,7 +6,7 @@ from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from appium.webdriver.common.touch_action import TouchAction
-import re
+
 
 desired_caps = {
     "platformName": "Android",
@@ -78,11 +78,16 @@ try:
     # 'new UiSelector().textContains("본인은 만 16세 이상이며 서비스 약관에 동의합니다")')
     # element.find_element(AppiumBy.XPATH, "..").click()
  
-    # 5. 두 번째 스위치 동의 (위치 정보로 클릭하는 방식) // new UiSelector().className("android.view.View").instance(4) - 여기서 계속 오류 발생
+    # 5. 두 번째 스위치 동의 (위치 정보로 클릭하는 방식) // new UiSelector().className("android.view.View").instance(3) - 여기서 계속 오류 발생
     agree_switch2 = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().className("android.view.View").instance(4)'))
+        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().className("android.view.View").instance(3)'))
     )
     agree_switch2.click()
+
+    # 6. 확인 버튼 클릭
+    confirm_button = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.android.chrome:id/ack_button")'))
+    )
 
     # 6. 파란색 '동의' 버튼 클릭
     agree_button = WebDriverWait(driver, 10).until(
