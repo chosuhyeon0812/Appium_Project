@@ -29,33 +29,42 @@
 # conftest.py
 import os
 import time                 # os/time : 환경변수 읽기, 타임스탬프 만들 때 사용
-from pathlib import Path    # Path : artifacts/ 폴더를 안전하게 생성하기 위해 사용
+import logging              # logging : 표준 로깅
+from pathlib import Path    # Path : artifacts/ 폴더 생성/관리
 
-import pytest               # pytest : fixture/hook을 쓰기 위해 필요
+import pytest               # pytest : fixture/hook을 사용
 from appium import webdriver
 from appium.options.android import UiAutomator2Options 
 # Appium 세션(드라이버) 생성과 Android 용 옵션을 다루기 위해 핗요
 
 # ---- 로깅 설정 --------
-# 필요에 맞게 level=INFO/DEBUG 조절, 파일로 남기고 싶으면 filename="test.log" 추가
+# level=INFO/DEBUG 조절, 파일로 남기려면 filename 지정
 logging.basicConfig(
-    filename="test.log",   # 로그 저장할 파일 이름
+    filename="test.log",   # 로그 저장할 파일 이름 (원하면 제거하고 콘솔만 써도 됨)
     filemode="w"           # "w"는 덮어쓰기, "a"는 이어쓰기
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-@pytest.fixture(scope="session") # 각 테스트 세션이 실행될 때마다 생성되고 삭제
+@pytest.fixture(scope="session") 
 def appium_url():
-    # 로컬 Appium 서버는 보통 http 사용
+    """
+    세션 스코프: pytest 실행 전체 동안 단 한 번만 생성되고 종료된다.
+    로컬 Appium 서버는 보통 http 사용. 팀 내 일관성 위해 /wd/hub 경로 권장.
+    """
     url = os.getenv("APPIUM_URL", "http://localhost:4723")
     logger.info(f"Using Appium URL: {url}")
     return url
 
 
-@pytest.fixture(scope="function") # 테스트 함수마다 새로운 Appium 세션을 띄우고, 테스트가 끝나면 종료
-def driver(appium_url, request): # request, 현재 실행 중인 테스트 노드 정보에 접근할 때 쓰임
+@pytest.fixture(scope="function") 
+def driver(appium_url, request): 
+    """
+    함수 스코프: 각 테스트 함수마다 새로운 Appium 세션을 띄우고,
+    테스트가 끝나면 종료한다. (격리 ↑, 재현성 ↑)
+    request: 현재 실행 중인 테스트 노드 정보에 접근할 때 쓰임
+    """
     opts = UiAutomator2Options()
 
     # 필수/권장 capability 설정
@@ -97,7 +106,7 @@ def driver(appium_url, request): # request, 현재 실행 중인 테스트 노�
             except Exception as e:
                 logger.warning(f"[ARTIFACT] Failed to save screenshot : {png} ({e})", exc_info=True)
 
-            # vpdlwl 소스 저장
+            # 페이지 소스 저장
             try:
                 with open(xml, "w", encoding="utf-8") as f:
                     f.write(drv.page_source)
@@ -130,48 +139,33 @@ def pytest_runtest_makereport(item, call):
 '''
 pytest의 Hook
 
-1. Hook
+1) Hook
 - pytest는 테스트 실행의 각 단계에서 특정 함수를 불러줄 수 있는 포인트를 제공
 - 우리가 직접 작성한 함수를 pytest가 자동으로 실행하면서,
 -> 거기서 원하는 동작(로깅, 결과 가공, 스크린샷 등)을 추가
 
-2.pytest_runtest_makereport 훅의 역할
-- 이 훅은 각 테스트 함수 실행이 씉난 후 pytest가 생성한 "리포트 객체(report)"를 전달
-- 테스트의 단계
+2) pytest_runtest_makereport 훅의 역할
+- 각 테스트 함수 실행이 씉난 후 pytest가 생성한 "리포트 객체(report)"를 전달
+- 테스트 단계
     1. setup 단계 : 픽스처/환경 준비
     2. call 단계 : 실제 테스트 함수 실행
     3. teardown 단계 : 뒷정리(드라이버 종료 등)
 - pytest는 각 단계별 결과를 rep_setup, rep_call, rep_teardown 형태로 담아줌
 - 이 훅을 사용하면, 우리가 실행 중인 테스트 객체(item)에 이 결과들을 속성으로 붙일 수 있음
 
-3. 코드 해석
-1) @pytest.hookimpl(hookwrapper=True, tryfirst=True)
-- @pytest.hookimpl : pytest가 이 함수를 훅 구현체로 인식하게 만듦
-- hookwrapper=True : pytest에 의해 원래 실행될 로직을 감사서 실행할 수 있다
-    - 즉, 이 함수 안에서 yield를 하고 나면 pytest가 본래 작업을 하고, 다시 돌아옴
-- tryfirst=True : 다른 훅 구현체보다 먼저 실행되도록 순서를 앞당겨 줌
+3) 코드 해석
+- @pytest.hookimpl(hookwrapper=True, tryfirst=True)
+  * hook 구현체로 인식 / 원래 로직을 감싸서 실행 / 우선 실행
+- def pytest_runtest_makereport(item, call):
+  * 훅 함수 이름은 반드시 pytest_runtest_makereport여야 한다.
+  * item : 현재 테스트 함수 객체(메타데이터)
+  * call : 현재 실행 단계 정보
+- outcome = yield
+  * pytest의 본래 실행을 진행시키고, 완료 후 outcome을 돌려받는다.
+- rep = outcome.get_result()
+  * TestReport를 얻는다 (when/failed/passed/skipped 등 포함).
+- setattr(item, "rep_" + rep.when, rep)
+  * item.rep_setup / item.rep_call / item.rep_teardown 동적 주입.
 
-2) def pytest_runtest-makereport(item, call):
-- 훅 함수 이름은 반드시 pytest_runtest_makereport여야 pytest가 알아봄
-- item : 지금 실행 중인 테스트 함수 객체 (메타 데이터 들어있음)
-- call : 현재 실행 중인 단계(estup, call, teardown)에 대한 정보
-
-3) outcome = yield
-- yield는 "pytest, 너 원래 할 일 다 하고 와"라는 뜻
-- pytest가 실제 테스트를 실행하고, 그 결과(outcome)를 우리에게 돌려줌
-
-4) rep = outcome.get_result()
-- outcome.get_result() -> 리포트 객체(TestReport)를 반환
-- 이 안에는 when, failed, passed, skipped 같은 정보가 들어있다
-- ex) rep.failed == true (실패) /  rep.when == "call" (테스트 본문 실행 단게 결과)
-
-5) setattr(item, "rep_" + rep.when, rep)
-- setattr : 객체에 동적으로 속성을 추가하는 함수
-- item 객체에 "rep_" + rep.when 이름으로 rep을 붙임
-    - setup 단계 -> item.rep_setup = rep
-    - call 단계 -> item.rep_call = rep
-    - teardown 단계 -> item.rep_teardown = rep
-
-4. 참고 문헌 
-- https://velog.io/@jaewan/Pytestfixture%EC%99%80-scope
+참고 : https://velog.io/@jaewan/Pytestfixture%EC%99%80-scope
 '''
